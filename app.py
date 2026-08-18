@@ -39,14 +39,14 @@ def pdf_verilerini_cek(pdf_file):
     plaka_match = re.search(r"Toplam Plaka Sayısı\s+(\d+)", text)
     veriler["Plaka_Sayisi"] = plaka_match.group(1) if plaka_match else ""
     
-    # B9 Hatasi duzeltildi: Sadece bosluga veya 'Isi' kelimesine kadar alacak
     dizilim_match = re.search(r"Plaka Dizilimi\s+(.*?)\s*Isı Tran", text)
     veriler["Plaka_Dizilimi"] = dizilim_match.group(1).strip() if dizilim_match else ""
     
     alan_match = re.search(r"Isı Tran[s]?fer Alanı\s+([\d,]+)", text)
     veriler["Isi_Transfer_Alani"] = alan_match.group(1) if alan_match else ""
     
-    marjin_match = re.search(r"Eşanjör marjini\s+([\d,]+)", text)
+    # HATA 2 DUZELTMESI: Eksi isareti eklendi ([-\d,]+)
+    marjin_match = re.search(r"Eşanjör marjini\s+([-\d,]+)", text)
     veriler["Esanjor_Marjini"] = marjin_match.group(1) if marjin_match else ""
     
     k_degeri_match = re.search(r"Görev k değeri\s+([\d\s/]+)\s*W", text)
@@ -70,8 +70,6 @@ def pdf_verilerini_cek(pdf_file):
     veriler["Primer_Plaka_Basinc"], veriler["Sekonder_Plaka_Basinc"] = ikili_cek(r"Plakalardaki basınç kaybı\s+([\d,]+)\s*kPa\s+([\d,]+)")
     veriler["Primer_Baglanti_Basinc"], veriler["Sekonder_Baglanti_Basinc"] = ikili_cek(r"Bağlantılardaki basınç kaybı\s+([\d,]+)\s*kPa\s+([\d,]+)")
     veriler["Primer_Hiz"], veriler["Sekonder_Hiz"] = ikili_cek(r"Kanal Akışkan Hızı\s+([\d,]+)\s*m/s\s+([\d,]+)")
-    
-    # B24 ve D24 hatasi icin eklenen satir
     veriler["Primer_Baglanti_Hizi"], veriler["Sekonder_Baglanti_Hizi"] = ikili_cek(r"Bağlantı Akışkan Hızı\s+([\d,]+)\s*m/s\s+([\d,]+)")
     veriler["Primer_Kirlenme"], veriler["Sekonder_Kirlenme"] = ikili_cek(r"Kirlenme faktörü\s+([\d,]+)\s*\(m² K\)/W\s+([\d,]+)")
     
@@ -89,14 +87,20 @@ def pdf_verilerini_cek(pdf_file):
     govde_malzeme_match = re.search(r"Gövde Malzemesi\s+(.+)", text)
     veriler["Govde_Malzemesi"] = govde_malzeme_match.group(1).strip() if govde_malzeme_match else ""
     
+    # HATA 3 DUZELTMESI: Baglanti tipleri dinamiklestirildi
     baglanti_p1_match = re.search(r"Primer Devre\s+(M\d+\s*=>\s*M\d+)", text)
     veriler["Baglanti_Primer_1"] = baglanti_p1_match.group(1) if baglanti_p1_match else ""
     
-    baglanti_tipi_match = re.search(r"(2\"\s*Dıştan Dişli\s*CS)", text) 
-    veriler["Baglanti_Tipi"] = baglanti_tipi_match.group(1) if baglanti_tipi_match else ""
+    # M1=>M2 altindaki satiri sicaklik degerine kadar tarar
+    baglanti_p_tip_match = re.search(r"M1\s*=>\s*M2.*?\n\s*(.*?)\s+\d", text)
+    veriler["Baglanti_Primer_Tip"] = baglanti_p_tip_match.group(1).strip() if baglanti_p_tip_match else ""
     
     baglanti_s1_match = re.search(r"Sekonder Devre\s+(M\d+\s*=>\s*M\d+)", text)
     veriler["Baglanti_Sekonder_1"] = baglanti_s1_match.group(1) if baglanti_s1_match else ""
+
+    # M3=>M4 altindaki satiri sonuna kadar tarar
+    baglanti_s_tip_match = re.search(r"M3\s*=>\s*M4.*?\n\s*(.*?)(?:\n|Ağırlık|$)", text)
+    veriler["Baglanti_Sekonder_Tip"] = baglanti_s_tip_match.group(1).strip() if baglanti_s_tip_match else ""
 
     agirlik_match = re.search(r"Ağırlık Boş / Dolu\s+([\d,\s/]+)\s*kg", text)
     veriler["Agirlik"] = agirlik_match.group(1).strip() if agirlik_match else ""
@@ -119,20 +123,20 @@ def excele_yaz(excel_file_path, v):
     wb = openpyxl.load_workbook(excel_file_path)
     sheet = wb.active 
     
-    # 1. HATA DUZELTMESI: Logoyu geri ekleme
-    # Logoyu sol ust koseye yerlestirecek (A1). 
-    # Logo hucresini kendi sablonuna gore "B1", "C2" vs degistirebilirsin.
+    # HATA 1 DUZELTMESI: Logo boyutu ve ortalamasi
     logo_path = "logo.png"
     if os.path.exists(logo_path):
         img = Image(logo_path)
-        sheet.add_image(img, "A1")
+        img.width = 160  # Genisligi buradan ayarlayabilirsin
+        img.height = 45  # Yuksekligi buradan ayarlayabilirsin
+        sheet.add_image(img, "C1") # A1 yerine C1 yaparak ortaladik
     
     sheet["E3"] = v.get("Tarih", "")
     sheet["A3"] = v.get("Model_Kodlu", "")
     sheet["B6"] = v.get("Kapasite", "")
-    sheet["B7"] = v.get("Model_Kodlu", "") # 2. HATA DUZELTMESI
+    sheet["B7"] = v.get("Model_Kodlu", "") 
     sheet["B8"] = v.get("Plaka_Sayisi", "")
-    sheet["B9"] = v.get("Plaka_Dizilimi", "") # 3. HATA DUZELTMESI
+    sheet["B9"] = v.get("Plaka_Dizilimi", "") 
     sheet["B10"] = v.get("Isi_Transfer_Alani", "")
     sheet["B11"] = v.get("Esanjor_Marjini", "")
     sheet["B12"] = v.get("K_Degeri", "")
@@ -147,7 +151,7 @@ def excele_yaz(excel_file_path, v):
     sheet["B21"] = v.get("Primer_Plaka_Basinc", "")
     sheet["B22"] = v.get("Primer_Baglanti_Basinc", "")
     sheet["B23"] = v.get("Primer_Hiz", "")
-    sheet["B24"] = v.get("Primer_Baglanti_Hizi", "") # 4. HATA DUZELTMESI
+    sheet["B24"] = v.get("Primer_Baglanti_Hizi", "") 
     sheet["B25"] = v.get("Primer_Kirlenme", "")
     
     sheet["D15"] = v.get("Sekonder_Akiskan", "")
@@ -159,7 +163,7 @@ def excele_yaz(excel_file_path, v):
     sheet["D21"] = v.get("Sekonder_Plaka_Basinc", "")
     sheet["D22"] = v.get("Sekonder_Baglanti_Basinc", "")
     sheet["D23"] = v.get("Sekonder_Hiz", "")
-    sheet["D24"] = v.get("Sekonder_Baglanti_Hizi", "") # 5. HATA DUZELTMESI
+    sheet["D24"] = v.get("Sekonder_Baglanti_Hizi", "") 
     sheet["D25"] = v.get("Sekonder_Kirlenme", "")
     
     sheet["B27"] = v.get("Primer_Yogunluk", "")
@@ -176,10 +180,12 @@ def excele_yaz(excel_file_path, v):
     sheet["B33"] = v.get("Conta_Malzemesi", "")
     sheet["B34"] = v.get("Govde_Malzemesi", "")
     
+    # HATA 3 HUCELERININ GUNCEL YERLERI
     sheet["B36"] = v.get("Baglanti_Primer_1", "")
-    sheet["B37"] = v.get("Baglanti_Tipi", "")
+    sheet["B37"] = v.get("Baglanti_Primer_Tip", "")
     sheet["B38"] = v.get("Baglanti_Sekonder_1", "")
-    sheet["B39"] = v.get("Baglanti_Tipi", "")
+    sheet["D37"] = v.get("Baglanti_Sekonder_Tip", "") 
+    
     sheet["B40"] = v.get("Agirlik", "")
     sheet["B41"] = v.get("Hacim", "")
     sheet["B42"] = v.get("Dizayn_Basinci", "")
