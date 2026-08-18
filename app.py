@@ -5,6 +5,7 @@ import io
 import os
 import openpyxl
 from openpyxl.drawing.image import Image
+from fpdf import FPDF
 
 # Kod haritasi
 KOD_HARITASI = {
@@ -119,7 +120,6 @@ def excele_yaz(excel_file_path, v):
     wb = openpyxl.load_workbook(excel_file_path)
     sheet = wb.active 
     
-    # Boyutlandirma kaldirildi, logo oldugu gibi B1 hucresine sabitlendi.
     logo_path = "logo.png"
     if os.path.exists(logo_path):
         img = Image(logo_path)
@@ -190,27 +190,158 @@ def excele_yaz(excel_file_path, v):
     output.seek(0)
     return output
 
+def pdf_olustur(v):
+    """Verileri alip logolu ve tablolu ozel bir PDF uretir"""
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.add_page()
+    
+    # Turkce karakter sorunu olmamasi icin Roboto fontunu indirip kullaniyoruz
+    font_path = "Roboto-Regular.ttf"
+    font_bold_path = "Roboto-Bold.ttf"
+    if not os.path.exists(font_path) or not os.path.exists(font_bold_path):
+        import urllib.request
+        urllib.request.urlretrieve("https://github.com/googlefonts/roboto/raw/main/src/hinted/Roboto-Regular.ttf", font_path)
+        urllib.request.urlretrieve("https://github.com/googlefonts/roboto/raw/main/src/hinted/Roboto-Bold.ttf", font_bold_path)
+        
+    pdf.add_font("Roboto", style="", fname=font_path)
+    pdf.add_font("Roboto", style="B", fname=font_bold_path)
+    
+    # Logo 
+    if os.path.exists("logo.png"):
+        pdf.image("logo.png", x=10, y=10, w=45)
+        
+    # Baslik ve Tarih
+    pdf.set_y(15)
+    pdf.set_font("Roboto", style="B", size=16)
+    pdf.cell(0, 10, "EŞANJÖR TEKNİK BİLGİ FORMU", align="R", new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.set_font("Roboto", style="", size=10)
+    pdf.cell(0, 5, f"Tarih: {v.get('Tarih', '')}", align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(10)
+    
+    # Tablo cizim yardimci fonksiyonlari
+    def satir_yaz(baslik, deger):
+        pdf.set_font("Roboto", style="B", size=9)
+        pdf.cell(60, 7, baslik, border=1)
+        pdf.set_font("Roboto", style="", size=9)
+        pdf.cell(0, 7, str(deger), border=1, new_x="LMARGIN", new_y="NEXT")
+
+    def ikili_satir_yaz(baslik1, deger1, baslik2, deger2):
+        pdf.set_font("Roboto", style="B", size=9)
+        pdf.cell(45, 7, baslik1, border=1)
+        pdf.set_font("Roboto", style="", size=9)
+        pdf.cell(50, 7, str(deger1), border=1)
+        
+        pdf.set_font("Roboto", style="B", size=9)
+        pdf.cell(45, 7, baslik2, border=1)
+        pdf.set_font("Roboto", style="", size=9)
+        pdf.cell(0, 7, str(deger2), border=1, new_x="LMARGIN", new_y="NEXT")
+
+    # --- 1. Bolum: Genel Ozellikler ---
+    pdf.set_font("Roboto", style="B", size=11)
+    pdf.set_fill_color(230, 230, 230)
+    pdf.cell(0, 8, "Genel ve Eşanjör Özellikleri", border=1, fill=True, new_x="LMARGIN", new_y="NEXT", align="C")
+    
+    satir_yaz("Model", v.get("Model_Kodlu", ""))
+    satir_yaz("Kapasite (kW)", v.get("Kapasite", ""))
+    satir_yaz("Plaka Sayısı ve Dizilimi", f"{v.get('Plaka_Sayisi', '')} / {v.get('Plaka_Dizilimi', '')}")
+    satir_yaz("Isı Transfer Alanı (m2)", v.get("Isi_Transfer_Alani", ""))
+    satir_yaz("Eşanjör Marjini (%)", v.get("Esanjor_Marjini", ""))
+    satir_yaz("Gerçek / Görev k değeri", v.get("K_Degeri", ""))
+    satir_yaz("LMTD (°C)", v.get("LMTD", ""))
+    
+    pdf.ln(3)
+    
+    # --- 2. Bolum: Devre Verileri ---
+    pdf.set_font("Roboto", style="B", size=11)
+    pdf.cell(95, 8, "Primer Devre (Sıcak)", border=1, fill=True, align="C")
+    pdf.cell(95, 8, "Sekonder Devre (Soğuk)", border=1, fill=True, new_x="LMARGIN", new_y="NEXT", align="C")
+    
+    ikili_satir_yaz("Akışkan Cinsi", v.get("Primer_Akiskan", ""), "Akışkan Cinsi", v.get("Sekonder_Akiskan", ""))
+    ikili_satir_yaz("Geçiş Sayısı", v.get("Primer_Gecis", ""), "Geçiş Sayısı", v.get("Sekonder_Gecis", ""))
+    ikili_satir_yaz("Debi (m3/h)", v.get("Primer_Debi", ""), "Debi (m3/h)", v.get("Sekonder_Debi", ""))
+    ikili_satir_yaz("Giriş Sıcaklığı (°C)", v.get("Primer_Giris_Sicakligi", ""), "Giriş Sıcaklığı (°C)", v.get("Sekonder_Giris_Sicakligi", ""))
+    ikili_satir_yaz("Çıkış Sıcaklığı (°C)", v.get("Primer_Cikis_Sicakligi", ""), "Çıkış Sıcaklığı (°C)", v.get("Sekonder_Cikis_Sicakligi", ""))
+    ikili_satir_yaz("Basınç Kaybı (kPa)", v.get("Primer_Basinc_Kaybi", ""), "Basınç Kaybı (kPa)", v.get("Sekonder_Basinc_Kaybi", ""))
+    ikili_satir_yaz("Plakalardaki Basınç Kaybı (kPa)", v.get("Primer_Plaka_Basinc", ""), "Plakalardaki Basınç Kaybı (kPa)", v.get("Sekonder_Plaka_Basinc", ""))
+    ikili_satir_yaz("Bağlantılardaki Basınç Kaybı (kPa)", v.get("Primer_Baglanti_Basinc", ""), "Bağlantılardaki Basınç Kaybı (kPa)", v.get("Sekonder_Baglanti_Basinc", ""))
+    ikili_satir_yaz("Kanal Akışkan Hızı (m/s)", v.get("Primer_Hiz", ""), "Kanal Akışkan Hızı (m/s)", v.get("Sekonder_Hiz", ""))
+    ikili_satir_yaz("Bağlantı Akışkan Hızı (m/s)", v.get("Primer_Baglanti_Hizi", ""), "Bağlantı Akışkan Hızı (m/s)", v.get("Sekonder_Baglanti_Hizi", ""))
+    ikili_satir_yaz("Kirlenme Faktörü", v.get("Primer_Kirlenme", ""), "Kirlenme Faktörü", v.get("Sekonder_Kirlenme", ""))
+    
+    pdf.ln(3)
+
+    # --- 3. Bolum: Akiskan Ozellikleri ---
+    pdf.set_font("Roboto", style="B", size=11)
+    pdf.cell(0, 8, "Akışkan Özellikleri", border=1, fill=True, new_x="LMARGIN", new_y="NEXT", align="C")
+    
+    ikili_satir_yaz("Yoğunluk (kg/m3)", v.get("Primer_Yogunluk", ""), "Yoğunluk (kg/m3)", v.get("Sekonder_Yogunluk", ""))
+    ikili_satir_yaz("Özgül Isı", v.get("Primer_Ozgul_Isi", ""), "Özgül Isı", v.get("Sekonder_Ozgul_Isi", ""))
+    ikili_satir_yaz("Termal İletkenlik", v.get("Primer_Iletkenlik", ""), "Termal İletkenlik", v.get("Sekonder_Iletkenlik", ""))
+    ikili_satir_yaz("Viskozite (cP)", v.get("Primer_Viskozite", ""), "Viskozite (cP)", v.get("Sekonder_Viskozite", ""))
+
+    pdf.ln(3)
+    
+    # --- 4. Bolum: Malzeme ve Diger Ozellikler ---
+    pdf.set_font("Roboto", style="B", size=11)
+    pdf.cell(0, 8, "Malzeme ve Yapısal Detaylar", border=1, fill=True, new_x="LMARGIN", new_y="NEXT", align="C")
+    
+    satir_yaz("Plaka Malzemesi", v.get("Plaka_Malzemesi", ""))
+    satir_yaz("Conta Malzemesi", v.get("Conta_Malzemesi", ""))
+    satir_yaz("Gövde Malzemesi", v.get("Govde_Malzemesi", ""))
+    
+    ikili_satir_yaz("Bağlantı", v.get("Baglanti_Primer_1", ""), "Bağlantı", v.get("Baglanti_Sekonder_1", ""))
+    ikili_satir_yaz("Bağlantı Tipi", v.get("Baglanti_Primer_Tip", ""), "Bağlantı Tipi", v.get("Baglanti_Sekonder_Tip", ""))
+    
+    ikili_satir_yaz("Dizayn Basıncı / Test Basıncı (bar)", v.get("Dizayn_Basinci", ""), "Çalışma Sıcaklığı (°C)", v.get("Calisma_Sicakligi", ""))
+    ikili_satir_yaz("Ağırlık Boş / Dolu (kg)", v.get("Agirlik", ""), "İç Hacim (dm3)", v.get("Hacim", ""))
+    satir_yaz("Maksimum Diferansiyel Basınç Farkı", f"{v.get('Max_Fark_Basinc', '')} bar")
+    
+    # PDF ciktisini dondur
+    return bytes(pdf.output())
+
+
 # --- STREAMLIT ARAYUZU ---
 st.set_page_config(page_title="PDF'ten Excel'e Veri Aktarimi", layout="centered")
 st.title("Teknik Belge Excel Olusturucu")
 
-uploaded_pdf = st.file_uploader("Teknik Belgeyi (PDF) Yukle", type="pdf")
+# Session state degiskenleri
+if "islem_tamam" not in st.session_state:
+    st.session_state.islem_tamam = False
 
+uploaded_pdf = st.file_uploader("Teknik Belgeyi (PDF) Yukle", type="pdf")
 sablon_excel_yolu = "teknik.xlsx" 
 
 if uploaded_pdf:
-    if st.button("Uygula ve Excel'i Hazirla"):
-        with st.spinner("Okunuyor..."):
-            cekilen_veriler = pdf_verilerini_cek(uploaded_pdf)
+    if st.button("Uygula ve Hazirla"):
+        with st.spinner("Okunuyor ve Hazirlaniyor..."):
+            st.session_state.cekilen_veriler = pdf_verilerini_cek(uploaded_pdf)
             
+            # Veriler arka planda Excel ve PDF'e hazirlanip onbellege aliniyor
             try:
-                hazir_excel = excele_yaz(sablon_excel_yolu, cekilen_veriler)
-                st.success("Aktarim Basarili!")
-                st.download_button(
-                    label="Hazirlanan Excel Dosyasini Indir",
-                    data=hazir_excel,
-                    file_name="teknik_cikti_doldurulmus.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+                st.session_state.hazir_excel = excele_yaz(sablon_excel_yolu, st.session_state.cekilen_veriler)
+                st.session_state.hazir_pdf = pdf_olustur(st.session_state.cekilen_veriler)
+                st.session_state.islem_tamam = True
             except FileNotFoundError:
                 st.error(f"Hata: '{sablon_excel_yolu}' dosyasi bulunamadi. Lutfen dosyanin GitHub reposunda app.py ile ayni dizinde oldugundan emin ol.")
+                st.session_state.islem_tamam = False
+
+    # Eger islem basariliysa, indirme butonlari yanyana cikar
+    if st.session_state.islem_tamam:
+        st.success("Aktarim Basarili! Asagidan istedigin formatta indirebilirsin.")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button(
+                label="Excel Olarak Indir",
+                data=st.session_state.hazir_excel,
+                file_name="teknik_cikti_doldurulmus.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        with col2:
+            st.download_button(
+                label="PDF Olarak Indir",
+                data=st.session_state.hazir_pdf,
+                file_name="teknik_cikti.pdf",
+                mime="application/pdf"
+            )
