@@ -184,7 +184,7 @@ def excele_yaz(excel_file_path, v):
     sheet["B36"] = v.get("Baglanti_Primer_1", "")
     sheet["B37"] = v.get("Baglanti_Primer_Tip", "")
     sheet["B38"] = v.get("Baglanti_Sekonder_1", "")
-    sheet["D37"] = v.get("Baglanti_Sekonder_Tip", "") 
+    sheet["b39"] = v.get("Baglanti_Sekonder_Tip", "") 
     
     sheet["B40"] = v.get("Agirlik", "")
     sheet["B41"] = v.get("Hacim", "")
