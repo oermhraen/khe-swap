@@ -236,6 +236,20 @@ if uploaded_pdf:
         with st.spinner("Veriler isleniyor ve dosya PDF'e ceviriliyor (Bu islem bikac saniye surebilir)..."):
             st.session_state.cekilen_veriler = pdf_verilerini_cek(uploaded_pdf)
             
+            # Dinamik Dosya Adi Olusturma
+            # Sicakliklardaki ",00" kismini dosya adinda temiz gosterir
+            def t_temizle(val):
+                return val.replace(",00", "") if val else "0"
+            
+            a3 = st.session_state.cekilen_veriler.get("Model_Kodlu", "MODEL")
+            b8 = st.session_state.cekilen_veriler.get("Plaka_Sayisi", "0")
+            b18 = t_temizle(st.session_state.cekilen_veriler.get("Primer_Giris_Sicakligi", ""))
+            b19 = t_temizle(st.session_state.cekilen_veriler.get("Primer_Cikis_Sicakligi", ""))
+            d18 = t_temizle(st.session_state.cekilen_veriler.get("Sekonder_Giris_Sicakligi", ""))
+            d19 = t_temizle(st.session_state.cekilen_veriler.get("Sekonder_Cikis_Sicakligi", ""))
+            
+            st.session_state.dosya_adi = f"KODSAN_{a3}_{b8}_{b18}-{b19}_{d18}-{d19}"
+            
             try:
                 # 1. Excel'i hazirla
                 st.session_state.hazir_excel = excele_yaz(sablon_excel_yolu, st.session_state.cekilen_veriler)
@@ -248,7 +262,7 @@ if uploaded_pdf:
                 else:
                     st.session_state.islem_tamam = False
             except FileNotFoundError:
-                st.error(f"Hata: '{sablon_excel_yolu}' dosyasi bulunamadi.")
+                st.error(f"Hata: '{sablon_excel_yolu}' dosyasi bulunamadi. Lutfen dosyanin GitHub reposunda app.py ile ayni dizinde oldugundan emin ol.")
                 st.session_state.islem_tamam = False
 
     if st.session_state.islem_tamam:
@@ -259,13 +273,13 @@ if uploaded_pdf:
             st.download_button(
                 label="Excel Olarak Indir",
                 data=st.session_state.hazir_excel,
-                file_name="teknik_cikti_doldurulmus.xlsx",
+                file_name=f"{st.session_state.dosya_adi}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
         with col2:
             st.download_button(
                 label="PDF Olarak Indir",
                 data=st.session_state.hazir_pdf,
-                file_name="teknik_cikti.pdf",
+                file_name=f"{st.session_state.dosya_adi}.pdf",
                 mime="application/pdf"
             )
