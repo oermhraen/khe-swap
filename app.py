@@ -2,7 +2,9 @@ import streamlit as st
 import PyPDF2
 import re
 import io
+import os
 import openpyxl
+from openpyxl.drawing.image import Image
 
 # Kod haritasi
 KOD_HARITASI = {
@@ -21,7 +23,6 @@ def pdf_verilerini_cek(pdf_file):
         
     veriler = {}
     
-    # Genel ve Esanjor Ozellikleri
     tarih_match = re.search(r"Tarih\s+([\d.]+)", text)
     veriler["Tarih"] = tarih_match.group(1) if tarih_match else ""
     
@@ -29,10 +30,8 @@ def pdf_verilerini_cek(pdf_file):
     if model_match:
         mit_kodu = model_match.group(1)
         veriler["Model_Kodlu"] = KOD_HARITASI.get(mit_kodu, f"Bulunamadi ({mit_kodu})")
-        veriler["Model_Raw"] = f"MIT {mit_kodu}"
     else:
         veriler["Model_Kodlu"] = ""
-        veriler["Model_Raw"] = ""
 
     kapasite_match = re.search(r"Kapasite\s+([\d,]+)", text)
     veriler["Kapasite"] = kapasite_match.group(1) if kapasite_match else ""
@@ -40,7 +39,8 @@ def pdf_verilerini_cek(pdf_file):
     plaka_match = re.search(r"Toplam Plaka Sayısı\s+(\d+)", text)
     veriler["Plaka_Sayisi"] = plaka_match.group(1) if plaka_match else ""
     
-    dizilim_match = re.search(r"Plaka Dizilimi\s+([A-Za-z0-9\s+]+)", text)
+    # B9 Hatasi duzeltildi: Sadece bosluga veya 'Isi' kelimesine kadar alacak
+    dizilim_match = re.search(r"Plaka Dizilimi\s+(.*?)\s*Isı Tran", text)
     veriler["Plaka_Dizilimi"] = dizilim_match.group(1).strip() if dizilim_match else ""
     
     alan_match = re.search(r"Isı Tran[s]?fer Alanı\s+([\d,]+)", text)
@@ -55,7 +55,6 @@ def pdf_verilerini_cek(pdf_file):
     lmtd_match = re.search(r"LMTD\s+([\d,]+)", text)
     veriler["LMTD"] = lmtd_match.group(1) if lmtd_match else ""
 
-    # Iki sutunlu veriler (Primer ve Sekonder)
     def ikili_cek(kalip):
         match = re.search(kalip, text)
         if match:
@@ -71,6 +70,9 @@ def pdf_verilerini_cek(pdf_file):
     veriler["Primer_Plaka_Basinc"], veriler["Sekonder_Plaka_Basinc"] = ikili_cek(r"Plakalardaki basınç kaybı\s+([\d,]+)\s*kPa\s+([\d,]+)")
     veriler["Primer_Baglanti_Basinc"], veriler["Sekonder_Baglanti_Basinc"] = ikili_cek(r"Bağlantılardaki basınç kaybı\s+([\d,]+)\s*kPa\s+([\d,]+)")
     veriler["Primer_Hiz"], veriler["Sekonder_Hiz"] = ikili_cek(r"Kanal Akışkan Hızı\s+([\d,]+)\s*m/s\s+([\d,]+)")
+    
+    # B24 ve D24 hatasi icin eklenen satir
+    veriler["Primer_Baglanti_Hizi"], veriler["Sekonder_Baglanti_Hizi"] = ikili_cek(r"Bağlantı Akışkan Hızı\s+([\d,]+)\s*m/s\s+([\d,]+)")
     veriler["Primer_Kirlenme"], veriler["Sekonder_Kirlenme"] = ikili_cek(r"Kirlenme faktörü\s+([\d,]+)\s*\(m² K\)/W\s+([\d,]+)")
     
     veriler["Primer_Yogunluk"], veriler["Sekonder_Yogunluk"] = ikili_cek(r"Yoğunluk\s+([\d,]+)\s*kg/m³\s+([\d,]+)")
@@ -78,7 +80,6 @@ def pdf_verilerini_cek(pdf_file):
     veriler["Primer_Iletkenlik"], veriler["Sekonder_Iletkenlik"] = ikili_cek(r"Termal İletkenlik\s+([\d,]+)\s*W/\(m K\)\s+([\d,]+)")
     veriler["Primer_Viskozite"], veriler["Sekonder_Viskozite"] = ikili_cek(r"Viskozite\s+([\d,]+)\s*cP\s+([\d,]+)")
 
-    # Malzeme Listesi
     plaka_malzeme_match = re.search(r"Plaka Malzemesi\s+(.+)", text)
     veriler["Plaka_Malzemesi"] = plaka_malzeme_match.group(1).strip() if plaka_malzeme_match else ""
     
@@ -88,7 +89,6 @@ def pdf_verilerini_cek(pdf_file):
     govde_malzeme_match = re.search(r"Gövde Malzemesi\s+(.+)", text)
     veriler["Govde_Malzemesi"] = govde_malzeme_match.group(1).strip() if govde_malzeme_match else ""
     
-    # Baglantilar (M1 => M2 ve dis yapisi)
     baglanti_p1_match = re.search(r"Primer Devre\s+(M\d+\s*=>\s*M\d+)", text)
     veriler["Baglanti_Primer_1"] = baglanti_p1_match.group(1) if baglanti_p1_match else ""
     
@@ -98,7 +98,6 @@ def pdf_verilerini_cek(pdf_file):
     baglanti_s1_match = re.search(r"Sekonder Devre\s+(M\d+\s*=>\s*M\d+)", text)
     veriler["Baglanti_Sekonder_1"] = baglanti_s1_match.group(1) if baglanti_s1_match else ""
 
-    # Agirlik ve Basinc
     agirlik_match = re.search(r"Ağırlık Boş / Dolu\s+([\d,\s/]+)\s*kg", text)
     veriler["Agirlik"] = agirlik_match.group(1).strip() if agirlik_match else ""
     
@@ -117,23 +116,28 @@ def pdf_verilerini_cek(pdf_file):
     return veriler
 
 def excele_yaz(excel_file_path, v):
-    # Github uzerindeki sabit dosyayi okuyoruz
     wb = openpyxl.load_workbook(excel_file_path)
     sheet = wb.active 
     
-    # Genel ve Esanjor Ozellikleri
+    # 1. HATA DUZELTMESI: Logoyu geri ekleme
+    # Logoyu sol ust koseye yerlestirecek (A1). 
+    # Logo hucresini kendi sablonuna gore "B1", "C2" vs degistirebilirsin.
+    logo_path = "logo.png"
+    if os.path.exists(logo_path):
+        img = Image(logo_path)
+        sheet.add_image(img, "A1")
+    
     sheet["E3"] = v.get("Tarih", "")
     sheet["A3"] = v.get("Model_Kodlu", "")
     sheet["B6"] = v.get("Kapasite", "")
-    sheet["B7"] = v.get("Model_Raw", "")
+    sheet["B7"] = v.get("Model_Kodlu", "") # 2. HATA DUZELTMESI
     sheet["B8"] = v.get("Plaka_Sayisi", "")
-    sheet["B9"] = v.get("Plaka_Dizilimi", "")
+    sheet["B9"] = v.get("Plaka_Dizilimi", "") # 3. HATA DUZELTMESI
     sheet["B10"] = v.get("Isi_Transfer_Alani", "")
     sheet["B11"] = v.get("Esanjor_Marjini", "")
     sheet["B12"] = v.get("K_Degeri", "")
     sheet["B13"] = v.get("LMTD", "")
     
-    # Primer Devre
     sheet["B15"] = v.get("Primer_Akiskan", "")
     sheet["B16"] = v.get("Primer_Gecis", "")
     sheet["B17"] = v.get("Primer_Debi", "")
@@ -143,9 +147,9 @@ def excele_yaz(excel_file_path, v):
     sheet["B21"] = v.get("Primer_Plaka_Basinc", "")
     sheet["B22"] = v.get("Primer_Baglanti_Basinc", "")
     sheet["B23"] = v.get("Primer_Hiz", "")
-    sheet["B24"] = v.get("Primer_Kirlenme", "")
+    sheet["B24"] = v.get("Primer_Baglanti_Hizi", "") # 4. HATA DUZELTMESI
+    sheet["B25"] = v.get("Primer_Kirlenme", "")
     
-    # Sekonder Devre
     sheet["D15"] = v.get("Sekonder_Akiskan", "")
     sheet["D16"] = v.get("Sekonder_Gecis", "")
     sheet["D17"] = v.get("Sekonder_Debi", "")
@@ -155,9 +159,9 @@ def excele_yaz(excel_file_path, v):
     sheet["D21"] = v.get("Sekonder_Plaka_Basinc", "")
     sheet["D22"] = v.get("Sekonder_Baglanti_Basinc", "")
     sheet["D23"] = v.get("Sekonder_Hiz", "")
-    sheet["D24"] = v.get("Sekonder_Kirlenme", "")
+    sheet["D24"] = v.get("Sekonder_Baglanti_Hizi", "") # 5. HATA DUZELTMESI
+    sheet["D25"] = v.get("Sekonder_Kirlenme", "")
     
-    # Akiskan Ozellikleri
     sheet["B27"] = v.get("Primer_Yogunluk", "")
     sheet["B28"] = v.get("Primer_Ozgul_Isi", "")
     sheet["B29"] = v.get("Primer_Iletkenlik", "")
@@ -168,12 +172,10 @@ def excele_yaz(excel_file_path, v):
     sheet["D29"] = v.get("Sekonder_Iletkenlik", "")
     sheet["D30"] = v.get("Sekonder_Viskozite", "")
     
-    # Malzeme ve Yapisal Detaylar
     sheet["B32"] = v.get("Plaka_Malzemesi", "")
     sheet["B33"] = v.get("Conta_Malzemesi", "")
     sheet["B34"] = v.get("Govde_Malzemesi", "")
     
-    # Baglantilar ve Basinc/Agirlik
     sheet["B36"] = v.get("Baglanti_Primer_1", "")
     sheet["B37"] = v.get("Baglanti_Tipi", "")
     sheet["B38"] = v.get("Baglanti_Sekonder_1", "")
@@ -193,10 +195,8 @@ def excele_yaz(excel_file_path, v):
 st.set_page_config(page_title="PDF'ten Excel'e Veri Aktarimi", layout="centered")
 st.title("Teknik Belge Excel Olusturucu")
 
-# Sadece PDF yukleme alani
 uploaded_pdf = st.file_uploader("Teknik Belgeyi (PDF) Yukle", type="pdf")
 
-# GitHub'a yukleyecegin sablon dosyasinin tam adi
 sablon_excel_yolu = "teknik.xlsx" 
 
 if uploaded_pdf:
