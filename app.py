@@ -35,8 +35,18 @@ def pdf_verilerini_cek(pdf_file):
     else:
         veriler["Model_Kodlu"] = ""
 
-    kapasite_match = re.search(r"Kapasite\s+([\d,]+)", text)
-    veriler["Kapasite"] = kapasite_match.group(1) if kapasite_match else ""
+    # KAPASITE VE BIRIMI AYIRMA GUNCELLEMESI
+    kapasite_match = re.search(r"Kapasite\s+([\d,.]+)\s*(kW|kcal/h)", text, re.IGNORECASE)
+    if kapasite_match:
+        veriler["Kapasite"] = kapasite_match.group(1)
+        birim = kapasite_match.group(2).lower()
+        # PDF'te nasil yazilirsa yazilsin standart bir formatta excele isliyoruz
+        veriler["Kapasite_Birim"] = "kW" if birim == "kw" else "kcal/h"
+    else:
+        # Birim yazilmamissa sadece rakami kurtar
+        kapasite_fallback = re.search(r"Kapasite\s+([\d,.]+)", text)
+        veriler["Kapasite"] = kapasite_fallback.group(1) if kapasite_fallback else ""
+        veriler["Kapasite_Birim"] = ""
     
     plaka_match = re.search(r"Toplam Plaka Sayısı\s+(\d+)", text)
     veriler["Plaka_Sayisi"] = plaka_match.group(1) if plaka_match else ""
@@ -128,7 +138,11 @@ def excele_yaz(excel_file_path, v):
     
     sheet["E3"] = v.get("Tarih", "")
     sheet["A3"] = v.get("Model_Kodlu", "")
+    
+    # HUCKE YAZDIRMA KISMI GUNCELLEMESI
     sheet["B6"] = v.get("Kapasite", "")
+    sheet["D6"] = v.get("Kapasite_Birim", "")
+    
     sheet["B7"] = v.get("Model_Kodlu", "") 
     sheet["B8"] = v.get("Plaka_Sayisi", "")
     sheet["B9"] = v.get("Plaka_Dizilimi", "") 
@@ -237,7 +251,6 @@ if uploaded_pdf:
             st.session_state.cekilen_veriler = pdf_verilerini_cek(uploaded_pdf)
             
             # Dinamik Dosya Adi Olusturma
-            # Sicakliklardaki ",00" kismini dosya adinda temiz gosterir
             def t_temizle(val):
                 return val.replace(",00", "") if val else "0"
             
