@@ -45,7 +45,6 @@ def pdf_verilerini_cek(pdf_file):
     alan_match = re.search(r"Isı Tran[s]?fer Alanı\s+([\d,]+)", text)
     veriler["Isi_Transfer_Alani"] = alan_match.group(1) if alan_match else ""
     
-    # HATA 2 DUZELTMESI: Eksi isareti eklendi ([-\d,]+)
     marjin_match = re.search(r"Eşanjör marjini\s+([-\d,]+)", text)
     veriler["Esanjor_Marjini"] = marjin_match.group(1) if marjin_match else ""
     
@@ -87,18 +86,15 @@ def pdf_verilerini_cek(pdf_file):
     govde_malzeme_match = re.search(r"Gövde Malzemesi\s+(.+)", text)
     veriler["Govde_Malzemesi"] = govde_malzeme_match.group(1).strip() if govde_malzeme_match else ""
     
-    # HATA 3 DUZELTMESI: Baglanti tipleri dinamiklestirildi
     baglanti_p1_match = re.search(r"Primer Devre\s+(M\d+\s*=>\s*M\d+)", text)
     veriler["Baglanti_Primer_1"] = baglanti_p1_match.group(1) if baglanti_p1_match else ""
     
-    # M1=>M2 altindaki satiri sicaklik degerine kadar tarar
     baglanti_p_tip_match = re.search(r"M1\s*=>\s*M2.*?\n\s*(.*?)\s+\d", text)
     veriler["Baglanti_Primer_Tip"] = baglanti_p_tip_match.group(1).strip() if baglanti_p_tip_match else ""
     
     baglanti_s1_match = re.search(r"Sekonder Devre\s+(M\d+\s*=>\s*M\d+)", text)
     veriler["Baglanti_Sekonder_1"] = baglanti_s1_match.group(1) if baglanti_s1_match else ""
 
-    # M3=>M4 altindaki satiri sonuna kadar tarar
     baglanti_s_tip_match = re.search(r"M3\s*=>\s*M4.*?\n\s*(.*?)(?:\n|Ağırlık|$)", text)
     veriler["Baglanti_Sekonder_Tip"] = baglanti_s_tip_match.group(1).strip() if baglanti_s_tip_match else ""
 
@@ -123,13 +119,11 @@ def excele_yaz(excel_file_path, v):
     wb = openpyxl.load_workbook(excel_file_path)
     sheet = wb.active 
     
-    # HATA 1 DUZELTMESI: Logo boyutu ve ortalamasi
+    # Boyutlandirma kaldirildi, logo oldugu gibi B1 hucresine sabitlendi.
     logo_path = "logo.png"
     if os.path.exists(logo_path):
         img = Image(logo_path)
-        img.width = 160  # Genisligi buradan ayarlayabilirsin
-        img.height = 45  # Yuksekligi buradan ayarlayabilirsin
-        sheet.add_image(img, "C1") # A1 yerine C1 yaparak ortaladik
+        sheet.add_image(img, "B1") 
     
     sheet["E3"] = v.get("Tarih", "")
     sheet["A3"] = v.get("Model_Kodlu", "")
@@ -180,11 +174,10 @@ def excele_yaz(excel_file_path, v):
     sheet["B33"] = v.get("Conta_Malzemesi", "")
     sheet["B34"] = v.get("Govde_Malzemesi", "")
     
-    # HATA 3 HUCELERININ GUNCEL YERLERI
     sheet["B36"] = v.get("Baglanti_Primer_1", "")
     sheet["B37"] = v.get("Baglanti_Primer_Tip", "")
     sheet["B38"] = v.get("Baglanti_Sekonder_1", "")
-    sheet["b39"] = v.get("Baglanti_Sekonder_Tip", "") 
+    sheet["B39"] = v.get("Baglanti_Sekonder_Tip", "") 
     
     sheet["B40"] = v.get("Agirlik", "")
     sheet["B41"] = v.get("Hacim", "")
