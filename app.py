@@ -301,7 +301,10 @@ if uploaded_pdf:
         # Verileri degiskenlere atayalim
         v_data = st.session_state.cekilen_veriler
         
-        model_metni = v_data.get('Model_Kodlu', '')
+        model_kod = v_data.get('Model_Kodlu', '')
+        plaka = v_data.get('Plaka_Sayisi', '')
+        model_metni = f"{model_kod} - {plaka} - PLAKALI EŞANJÖR" if model_kod else ""
+        
         kapasite_metni = f"{v_data.get('Kapasite', '')} {v_data.get('Kapasite_Birim', '')}"
         
         primer_metni = f"{v_data.get('Primer_Giris_Sicakligi', '')}°C / {v_data.get('Primer_Cikis_Sicakligi', '')}°C - {v_data.get('Primer_Basinc_Kaybi', '')} kPa"
