@@ -35,15 +35,13 @@ def pdf_verilerini_cek(pdf_file):
     else:
         veriler["Model_Kodlu"] = ""
 
-    # KAPASITE VE BIRIMI AYIRMA GUNCELLEMESI
+    # KAPASITE VE BIRIMI AYIRMA
     kapasite_match = re.search(r"Kapasite\s+([\d,.]+)\s*(kW|kcal/h)", text, re.IGNORECASE)
     if kapasite_match:
         veriler["Kapasite"] = kapasite_match.group(1)
         birim = kapasite_match.group(2).lower()
-        # PDF'te nasil yazilirsa yazilsin standart bir formatta excele isliyoruz
         veriler["Kapasite_Birim"] = "kW" if birim == "kw" else "kcal/h"
     else:
-        # Birim yazilmamissa sadece rakami kurtar
         kapasite_fallback = re.search(r"Kapasite\s+([\d,.]+)", text)
         veriler["Kapasite"] = kapasite_fallback.group(1) if kapasite_fallback else ""
         veriler["Kapasite_Birim"] = ""
@@ -139,7 +137,6 @@ def excele_yaz(excel_file_path, v):
     sheet["E3"] = v.get("Tarih", "")
     sheet["A3"] = v.get("Model_Kodlu", "")
     
-    # HUCKE YAZDIRMA KISMI GUNCELLEMESI
     sheet["B6"] = v.get("Kapasite", "")
     sheet["D6"] = v.get("Kapasite_Birim", "")
     
@@ -247,7 +244,7 @@ sablon_excel_yolu = "teknik.xlsx"
 
 if uploaded_pdf:
     if st.button("Uygula ve Hazirla"):
-        with st.spinner("Veriler isleniyor ve dosya PDF'e ceviriliyor (Bu islem bikac saniye surebilir)..."):
+        with st.spinner("Veriler isleniyor ve dosya PDF'e ceviriliyor (Bu islem birkac saniye surebilir)..."):
             st.session_state.cekilen_veriler = pdf_verilerini_cek(uploaded_pdf)
             
             # Dinamik Dosya Adi Olusturma
@@ -296,3 +293,34 @@ if uploaded_pdf:
                 file_name=f"{st.session_state.dosya_adi}.pdf",
                 mime="application/pdf"
             )
+
+        # --- TEKLIF ICERIGI BOLUMU ---
+        st.markdown("---")
+        st.subheader("Teklif İçeriği")
+        
+        # Verileri degiskenlere atayalim
+        v_data = st.session_state.cekilen_veriler
+        
+        kapasite_metni = f"{v_data.get('Kapasite', '')} {v_data.get('Kapasite_Birim', '')}"
+        
+        primer_metni = f"{v_data.get('Primer_Giris_Sicakligi', '')}°C / {v_data.get('Primer_Cikis_Sicakligi', '')}°C - {v_data.get('Primer_Basinc_Kaybi', '')} kPa"
+        sekonder_metni = f"{v_data.get('Sekonder_Giris_Sicakligi', '')}°C / {v_data.get('Sekonder_Cikis_Sicakligi', '')}°C - {v_data.get('Sekonder_Basinc_Kaybi', '')} kPa"
+        
+        malzeme_metni = f"{v_data.get('Plaka_Malzemesi', '')} - {v_data.get('Conta_Malzemesi', '')}"
+        
+        # Isletme basincini 10 / 15 formatindan cekip sadece 10 kismini alir
+        basinc_tam = v_data.get("Dizayn_Basinci", "")
+        isletme_basinci = basinc_tam.split("/")[0].strip() if "/" in basinc_tam else basinc_tam
+        govde_metni = f"{v_data.get('Govde_Malzemesi', '')} - {isletme_basinci} Bar"
+        
+        baglanti_metni = v_data.get("Baglanti_Primer_Tip", "")
+
+        # Ekrana basilacak final metin
+        teklif_ciktisi = f"""Kapasite : {kapasite_metni}
+Primer Devre : {primer_metni}
+Sekonder Devre : {sekonder_metni}
+Plaka ve Conta Malzemesi : {malzeme_metni}
+Gövde Malzemesi ve İşletme Basıncı : {govde_metni}
+Bağlantı Malzemesi ve Çapı : {baglanti_metni}"""
+
+        st.text_area("Mail veya teklif formuna kopyalamak için:", value=teklif_ciktisi, height=180)
