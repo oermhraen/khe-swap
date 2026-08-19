@@ -301,6 +301,7 @@ if uploaded_pdf:
         # Verileri degiskenlere atayalim
         v_data = st.session_state.cekilen_veriler
         
+        model_metni = v_data.get('Model_Kodlu', '')
         kapasite_metni = f"{v_data.get('Kapasite', '')} {v_data.get('Kapasite_Birim', '')}"
         
         primer_metni = f"{v_data.get('Primer_Giris_Sicakligi', '')}°C / {v_data.get('Primer_Cikis_Sicakligi', '')}°C - {v_data.get('Primer_Basinc_Kaybi', '')} kPa"
@@ -308,19 +309,21 @@ if uploaded_pdf:
         
         malzeme_metni = f"{v_data.get('Plaka_Malzemesi', '')} - {v_data.get('Conta_Malzemesi', '')}"
         
-        # Isletme basincini 10 / 15 formatindan cekip sadece 10 kismini alir
+        govde_metni = v_data.get('Govde_Malzemesi', '')
+        
         basinc_tam = v_data.get("Dizayn_Basinci", "")
-        isletme_basinci = basinc_tam.split("/")[0].strip() if "/" in basinc_tam else basinc_tam
-        govde_metni = f"{v_data.get('Govde_Malzemesi', '')} - {isletme_basinci} Bar"
+        isletme_test_basinci = f"{basinc_tam} Bar" if basinc_tam else ""
         
         baglanti_metni = v_data.get("Baglanti_Primer_Tip", "")
 
         # Ekrana basilacak final metin
-        teklif_ciktisi = f"""Kapasite : {kapasite_metni}
+        teklif_ciktisi = f"""Model : {model_metni}
+Kapasite : {kapasite_metni}
 Primer Devre : {primer_metni}
 Sekonder Devre : {sekonder_metni}
 Plaka ve Conta Malzemesi : {malzeme_metni}
-Gövde Malzemesi ve İşletme Basıncı : {govde_metni}
+Gövde Malzemesi : {govde_metni}
+İşletme ve Test Basıncı : {isletme_test_basinci}
 Bağlantı Malzemesi ve Çapı : {baglanti_metni}"""
 
-        st.text_area("Mail veya teklif formuna kopyalamak için:", value=teklif_ciktisi, height=180)
+        st.text_area("Mail veya teklif formuna kopyalamak için:", value=teklif_ciktisi, height=230)
