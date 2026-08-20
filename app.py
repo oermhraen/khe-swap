@@ -28,7 +28,7 @@ def pdf_verilerini_cek(pdf_file):
     tarih_match = re.search(r"Tarih\s+([\d.]+)", text)
     veriler["Tarih"] = tarih_match.group(1) if tarih_match else ""
     
-    model_match = re.search(r"Model\s+(?:MIT\s+)?(\d+)", text, re.IGNORECASE)
+    model_match = re.search(r"Model\s+(?:MIT\s+)?(\d+)", text)
     if model_match:
         mit_kodu = model_match.group(1)
         veriler["Model_Kodlu"] = KOD_HARITASI.get(mit_kodu, f"Bulunamadi ({mit_kodu})")
@@ -42,116 +42,86 @@ def pdf_verilerini_cek(pdf_file):
         birim = kapasite_match.group(2).lower()
         veriler["Kapasite_Birim"] = "kW" if birim == "kw" else "kcal/h"
     else:
-        kapasite_fallback = re.search(r"Kapasite\s+([\d,.]+)", text, re.IGNORECASE)
+        kapasite_fallback = re.search(r"Kapasite\s+([\d,.]+)", text)
         veriler["Kapasite"] = kapasite_fallback.group(1) if kapasite_fallback else ""
         veriler["Kapasite_Birim"] = ""
     
-    plaka_match = re.search(r"Toplam Plaka Sayısı\s+(\d+)", text, re.IGNORECASE)
+    plaka_match = re.search(r"Toplam Plaka Sayısı\s+(\d+)", text)
     veriler["Plaka_Sayisi"] = plaka_match.group(1) if plaka_match else ""
     
-    dizilim_match = re.search(r"Plaka Dizilimi\s+(.*?)\s*Isı Tran", text, re.IGNORECASE)
+    dizilim_match = re.search(r"Plaka Dizilimi\s+(.*?)\s*Isı Tran", text)
     veriler["Plaka_Dizilimi"] = dizilim_match.group(1).strip() if dizilim_match else ""
     
-    alan_match = re.search(r"Isı Tran[s]?fer Alanı\s+([\d,.]+)", text, re.IGNORECASE)
+    alan_match = re.search(r"Isı Tran[s]?fer Alanı\s+([\d,]+)", text)
     veriler["Isi_Transfer_Alani"] = alan_match.group(1) if alan_match else ""
     
-    marjin_match = re.search(r"Eşanjör marjini\s+([-\d,.]+)", text, re.IGNORECASE)
+    marjin_match = re.search(r"Eşanjör marjini\s+([-\d,]+)", text)
     veriler["Esanjor_Marjini"] = marjin_match.group(1) if marjin_match else ""
     
-    k_degeri_match = re.search(r"Görev k değeri\s+([\d\s/]+)", text, re.IGNORECASE)
+    k_degeri_match = re.search(r"Görev k değeri\s+([\d\s/]+)\s*W", text)
     veriler["K_Degeri"] = k_degeri_match.group(1).strip() if k_degeri_match else ""
     
-    lmtd_match = re.search(r"LMTD\s+([\d,.]+)", text, re.IGNORECASE)
+    lmtd_match = re.search(r"LMTD\s+([\d,]+)", text)
     veriler["LMTD"] = lmtd_match.group(1) if lmtd_match else ""
 
     def ikili_cek(kalip):
-        match = re.search(kalip, text, re.IGNORECASE)
+        match = re.search(kalip, text)
         if match:
             return match.group(1).strip(), match.group(2).strip()
         return "", ""
 
-    # IKI PDF FORMATINI (Düzgün ve Bozuk) HATA PAYISIZ KAPSAYAN KESIN BIRIMLER
-    u_debi = r"(?:m³/h|m3/h|m\^\{3\}/h|m\^3/h|\$m\^\{3\}/h\$)"
-    u_sicaklik = r"(?:°C|\$``C\$|``C|`C|C)"
-    u_basinc = r"(?:kPa)"
-    u_hiz = r"(?:m/s|\$m/s\$)"
-    u_kirlenme = r"(?:\(m²\s*K\)/W|\$\(m\^\{2\}K\)/w\$|\$\(m\^\{2\}K\)/m\$|\(m² K\)/m|m² K/W)"
-    u_yogunluk = r"(?:kg/m³|kg/m3|\$kg/m\^\{3\}\$|kg/m\^\{3\}|kg/m²|kg/m2)" # 500kW'da m2 yazim hatasi tolere edildi
-    u_ozgul = r"(?:J/\(kg\s*K\)|\$J/\(kg~K\)\$)"
-    u_iletkenlik = r"(?:W/\(m\s*K\)|\$W/\(m~K\)\$)"
-    u_viskozite = r"(?:cP|CP)"
-
     veriler["Primer_Akiskan"], veriler["Sekonder_Akiskan"] = ikili_cek(r"Akışkan Cinsi\s+(\S+)\s+(\S+)")
     veriler["Primer_Gecis"], veriler["Sekonder_Gecis"] = ikili_cek(r"Geçiş Sayısı\s+(\d+)\s+(\d+)")
-    veriler["Primer_Debi"], veriler["Sekonder_Debi"] = ikili_cek(r"Akışkan Debisi\s+([\d,.]+)\s*" + u_debi + r"\s+([\d,.]+)")
-    veriler["Primer_Giris_Sicakligi"], veriler["Sekonder_Giris_Sicakligi"] = ikili_cek(r"Giriş Sıcaklığı\s+([\d,.]+)\s*" + u_sicaklik + r"\s+([\d,.]+)")
-    veriler["Primer_Cikis_Sicakligi"], veriler["Sekonder_Cikis_Sicakligi"] = ikili_cek(r"Çıkış Sıcaklığı\s+([\d,.]+)\s*" + u_sicaklik + r"\s+([\d,.]+)")
-    veriler["Primer_Basinc_Kaybi"], veriler["Sekonder_Basinc_Kaybi"] = ikili_cek(r"Basınç Kaybı\s+([\d,.]+)\s*" + u_basinc + r"\s+([\d,.]+)")
-    veriler["Primer_Plaka_Basinc"], veriler["Sekonder_Plaka_Basinc"] = ikili_cek(r"Plakalardaki basınç kaybı\s+([\d,.]+)\s*" + u_basinc + r"\s+([\d,.]+)")
-    veriler["Primer_Baglanti_Basinc"], veriler["Sekonder_Baglanti_Basinc"] = ikili_cek(r"Bağlantılardaki basınç kaybı\s+([\d,.]+)\s*" + u_basinc + r"\s+([\d,.]+)")
-    veriler["Primer_Hiz"], veriler["Sekonder_Hiz"] = ikili_cek(r"Kanal Akışkan Hızı\s+([\d,.]+)\s*" + u_hiz + r"\s+([\d,.]+)")
-    veriler["Primer_Baglanti_Hizi"], veriler["Sekonder_Baglanti_Hizi"] = ikili_cek(r"Bağlantı Akışkan Hızı\s+([\d,.]+)\s*" + u_hiz + r"\s+([\d,.]+)")
-    veriler["Primer_Kirlenme"], veriler["Sekonder_Kirlenme"] = ikili_cek(r"Kirlenme faktörü\s+([\d,.]+)\s*" + u_kirlenme + r"\s+([\d,.]+)")
+    veriler["Primer_Debi"], veriler["Sekonder_Debi"] = ikili_cek(r"Akışkan Debisi\s+([\d,]+)\s*m³/h\s+([\d,]+)")
+    veriler["Primer_Giris_Sicakligi"], veriler["Sekonder_Giris_Sicakligi"] = ikili_cek(r"Giriş Sıcaklığı\s+([\d,]+)\s*°C\s+([\d,]+)")
+    veriler["Primer_Cikis_Sicakligi"], veriler["Sekonder_Cikis_Sicakligi"] = ikili_cek(r"Çıkış Sıcaklığı\s+([\d,]+)\s*°C\s+([\d,]+)")
+    veriler["Primer_Basinc_Kaybi"], veriler["Sekonder_Basinc_Kaybi"] = ikili_cek(r"Basınç Kaybı\s+([\d,]+)\s*kPa\s+([\d,]+)")
+    veriler["Primer_Plaka_Basinc"], veriler["Sekonder_Plaka_Basinc"] = ikili_cek(r"Plakalardaki basınç kaybı\s+([\d,]+)\s*kPa\s+([\d,]+)")
+    veriler["Primer_Baglanti_Basinc"], veriler["Sekonder_Baglanti_Basinc"] = ikili_cek(r"Bağlantılardaki basınç kaybı\s+([\d,]+)\s*kPa\s+([\d,]+)")
+    veriler["Primer_Hiz"], veriler["Sekonder_Hiz"] = ikili_cek(r"Kanal Akışkan Hızı\s+([\d,]+)\s*m/s\s+([\d,]+)")
+    veriler["Primer_Baglanti_Hizi"], veriler["Sekonder_Baglanti_Hizi"] = ikili_cek(r"Bağlantı Akışkan Hızı\s+([\d,]+)\s*m/s\s+([\d,]+)")
+    veriler["Primer_Kirlenme"], veriler["Sekonder_Kirlenme"] = ikili_cek(r"Kirlenme faktörü\s+([\d,]+)\s*\(m² K\)/W\s+([\d,]+)")
     
-    veriler["Primer_Yogunluk"], veriler["Sekonder_Yogunluk"] = ikili_cek(r"Yoğunluk\s+([\d,.]+)\s*" + u_yogunluk + r"\s+([\d,.]+)")
-    veriler["Primer_Ozgul_Isi"], veriler["Sekonder_Ozgul_Isi"] = ikili_cek(r"Özgül Isı\s+(\d+)\s*" + u_ozgul + r"\s+(\d+)")
-    veriler["Primer_Iletkenlik"], veriler["Sekonder_Iletkenlik"] = ikili_cek(r"Termal İletkenlik\s+([\d,.]+)\s*" + u_iletkenlik + r"\s+([\d,.]+)")
-    veriler["Primer_Viskozite"], veriler["Sekonder_Viskozite"] = ikili_cek(r"Viskozite\s+([\d,.]+)\s*" + u_viskozite + r"\s+([\d,.]+)")
+    veriler["Primer_Yogunluk"], veriler["Sekonder_Yogunluk"] = ikili_cek(r"Yoğunluk\s+([\d,]+)\s*kg/m³\s+([\d,]+)")
+    veriler["Primer_Ozgul_Isi"], veriler["Sekonder_Ozgul_Isi"] = ikili_cek(r"Özgül Isı\s+(\d+)\s*J/\(kg K\)\s+(\d+)")
+    veriler["Primer_Iletkenlik"], veriler["Sekonder_Iletkenlik"] = ikili_cek(r"Termal İletkenlik\s+([\d,]+)\s*W/\(m K\)\s+([\d,]+)")
+    veriler["Primer_Viskozite"], veriler["Sekonder_Viskozite"] = ikili_cek(r"Viskozite\s+([\d,]+)\s*cP\s+([\d,]+)")
 
-    plaka_malzeme_match = re.search(r"Plaka Malzemesi\s+(.+)", text, re.IGNORECASE)
+    plaka_malzeme_match = re.search(r"Plaka Malzemesi\s+(.+)", text)
     veriler["Plaka_Malzemesi"] = plaka_malzeme_match.group(1).strip() if plaka_malzeme_match else ""
     
-    conta_malzeme_match = re.search(r"Conta Malzemesi\s+(.+)", text, re.IGNORECASE)
+    conta_malzeme_match = re.search(r"Conta Malzemesi\s+(.+)", text)
     veriler["Conta_Malzemesi"] = conta_malzeme_match.group(1).strip() if conta_malzeme_match else ""
     
-    # Govde Malzemesi bozulmalarina karsi guvenli okuma
-    govde_idx = text.find("Gövde Malzemesi")
-    if govde_idx != -1:
-        sub_govde = text[govde_idx:govde_idx+150] 
-        mat_match = re.search(r"(Boyalı Karbon Çelik|Karbon Çelik|Paslanmaz Çelik|AISI\s*\d+[A-Z]?)", sub_govde, re.IGNORECASE)
-        if mat_match:
-            veriler["Govde_Malzemesi"] = mat_match.group(1).strip()
-        else:
-            g_match = re.search(r"Gövde Malzemesi\s+(.+)", sub_govde)
-            veriler["Govde_Malzemesi"] = g_match.group(1).strip() if g_match else ""
-    else:
-        veriler["Govde_Malzemesi"] = ""
+    govde_malzeme_match = re.search(r"Gövde Malzemesi\s+(.+)", text)
+    veriler["Govde_Malzemesi"] = govde_malzeme_match.group(1).strip() if govde_malzeme_match else ""
     
-    veriler["Baglanti_Primer_1"] = "M1 => M2"
-    baglanti_p_tip_match = re.search(r"M1\s*(?:=>|=|>)\s*M2\s*\n\s*([^\n]+)", text, re.IGNORECASE)
+    baglanti_p1_match = re.search(r"Primer Devre\s+(M\d+\s*=>\s*M\d+)", text)
+    veriler["Baglanti_Primer_1"] = baglanti_p1_match.group(1) if baglanti_p1_match else ""
+    
+    baglanti_p_tip_match = re.search(r"M1\s*=>\s*M2.*?\n\s*(.*?)\s+\d", text)
     veriler["Baglanti_Primer_Tip"] = baglanti_p_tip_match.group(1).strip() if baglanti_p_tip_match else ""
     
-    veriler["Baglanti_Sekonder_1"] = "M3 => M4"
-    baglanti_s_tip_match = re.search(r"\$?M3\s*(?:=>|=|>)\s*M4\$?\s*\n\s*([^\n]+)", text, re.IGNORECASE)
+    baglanti_s1_match = re.search(r"Sekonder Devre\s+(M\d+\s*=>\s*M\d+)", text)
+    veriler["Baglanti_Sekonder_1"] = baglanti_s1_match.group(1) if baglanti_s1_match else ""
+
+    baglanti_s_tip_match = re.search(r"M3\s*=>\s*M4.*?\n\s*(.*?)(?:\n|Ağırlık|$)", text)
     veriler["Baglanti_Sekonder_Tip"] = baglanti_s_tip_match.group(1).strip() if baglanti_s_tip_match else ""
 
-    # Düzgün (500 kW) formati icin Agirlik kumesi aramasi
-    agirlik_match = re.search(r"Ağırlık Boş / Dolu\s+([\d,\s/.]+)\s*kg", text, re.IGNORECASE)
-    if agirlik_match:
-        veriler["Agirlik"] = agirlik_match.group(1).strip()
-        hacim_match = re.search(r"İç Hacim Primer / Sekonder\s+([\d,\s/.]+)\s*dm³", text, re.IGNORECASE)
-        veriler["Hacim"] = hacim_match.group(1).strip() if hacim_match else ""
-        dizayn_basinc_match = re.search(r"Dizayn / Test Basıncı\s+([\d,\s/.]+)\s*bar", text, re.IGNORECASE)
-        veriler["Dizayn_Basinci"] = dizayn_basinc_match.group(1).strip() if dizayn_basinc_match else ""
-        calisma_sicakligi_match = re.search(r"Min/Max Çalışma Sıcaklığı\s+([-\d,\s/.]+)\s*°C", text, re.IGNORECASE)
-        veriler["Calisma_Sicakligi"] = calisma_sicakligi_match.group(1).strip() if calisma_sicakligi_match else ""
-        fark_basinc_match = re.search(r"Maksimum Diferansiyel Basınç Farkı\s+(\d+)\s*bar", text, re.IGNORECASE)
-        veriler["Max_Fark_Basinc"] = fark_basinc_match.group(1).strip() if fark_basinc_match else ""
-    else:
-        # Bozulmus/Dağınık (2008 kW) formati icin Agirlik kumesi aramasi (degerler en alta toplanir)
-        blok_match = re.search(r"Maksimum Diferansiyel Basınç Farkı\s+([0-9,./]+)\s+([0-9,./]+)\s+([0-9,./]+)\s+([-0-9,./]+)\s+([0-9,./]+)", text, re.IGNORECASE)
-        if blok_match:
-            veriler["Agirlik"] = blok_match.group(1).strip()
-            veriler["Hacim"] = blok_match.group(2).strip()
-            veriler["Dizayn_Basinci"] = blok_match.group(3).strip()
-            veriler["Calisma_Sicakligi"] = blok_match.group(4).strip()
-            veriler["Max_Fark_Basinc"] = blok_match.group(5).strip()
-        else:
-            veriler["Agirlik"] = ""
-            veriler["Hacim"] = ""
-            veriler["Dizayn_Basinci"] = ""
-            veriler["Calisma_Sicakligi"] = ""
-            veriler["Max_Fark_Basinc"] = ""
+    agirlik_match = re.search(r"Ağırlık Boş / Dolu\s+([\d,\s/]+)\s*kg", text)
+    veriler["Agirlik"] = agirlik_match.group(1).strip() if agirlik_match else ""
+    
+    hacim_match = re.search(r"İç Hacim Primer / Sekonder\s+([\d,\s/]+)\s*dm³", text)
+    veriler["Hacim"] = hacim_match.group(1).strip() if hacim_match else ""
+    
+    dizayn_basinc_match = re.search(r"Dizayn / Test Basıncı\s+([\d,\s/]+)\s*bar", text)
+    veriler["Dizayn_Basinci"] = dizayn_basinc_match.group(1).strip() if dizayn_basinc_match else ""
+    
+    calisma_sicakligi_match = re.search(r"Min/Max Çalışma Sıcaklığı\s+([-\d,\s/]+)\s*°C", text)
+    veriler["Calisma_Sicakligi"] = calisma_sicakligi_match.group(1).strip() if calisma_sicakligi_match else ""
+    
+    fark_basinc_match = re.search(r"Maksimum Diferansiyel Basınç Farkı\s+(\d+)\s*bar", text)
+    veriler["Max_Fark_Basinc"] = fark_basinc_match.group(1).strip() if fark_basinc_match else ""
 
     return veriler
 
@@ -167,6 +137,7 @@ def excele_yaz(excel_file_path, v):
     sheet["E3"] = v.get("Tarih", "")
     sheet["A3"] = v.get("Model_Kodlu", "")
     
+    # HUCKE YAZDIRMA KISMI GUNCELLEMESI
     sheet["B6"] = v.get("Kapasite", "")
     sheet["D6"] = v.get("Kapasite_Birim", "")
     
